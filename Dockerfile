@@ -1,32 +1,29 @@
-# Usar una imagen base de Python
-FROM python:3.10.0
+FROM python:3.10-slim
 
-# Establecer el directorio de trabajo
 WORKDIR /app
 
-# Instalar dependencias del sistema necesarias para OpenCV
+# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements primero para aprovechar la caché de Docker
+# Copiar requirements primero para caché
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar todo el código
+COPY . .
 
 # Crear directorio para modelos
 RUN mkdir -p /app/models
 
-# Copiar la aplicación y los modelos
-COPY . .
-
-# Asegurarse de que los modelos estén en la ubicación correcta
-RUN if [ -d "/app/app/models" ]; then \
-    mv /app/app/models/* /app/models/ && \
-    rmdir /app/app/models; \
-    fi
+# Variables de entorno
+ENV FLASK_APP=run.py
+ENV FLASK_ENV=production
 
 # Puerto expuesto
-EXPOSE 5000
+EXPOSE 10000
 
-# Comando para ejecutar la aplicación
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:create_app()"]
+# Comando para iniciar
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "run:app"]
