@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: modelo-lsp-api
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt
+      # Crear directorio para modelos si no existe
+      mkdir -p models
+      # Mover modelos a la ubicación correcta
+      if [ -d "app/models" ]; then
+        mv app/models/* models/ && rmdir app/models
+      fi
+    startCommand: gunicorn --bind 0.0.0.0:$PORT run:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: FLASK_APP
+        value: run.py
+      - key: FLASK_ENV
+        value: production
+      - key: MODEL_PATH
+        value: "./models/letters_model.keras"
+    plan: free
