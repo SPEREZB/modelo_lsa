@@ -21,8 +21,5 @@ RUN mkdir -p /app/models
 # Variables de entorno
 ENV FLASK_APP=run.py
 ENV FLASK_ENV=production
-
-# Puerto expuesto
-EXPOSE 5000
-
-CMD gunicorn --bind 0.0.0.0:5000 -w 1 --timeout 3000 run:app
+ 
+CMD gunicorn --bind 0.0.0.0:$PORT -w 1 --timeout 3000 run:app
