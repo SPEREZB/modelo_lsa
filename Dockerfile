@@ -23,6 +23,6 @@ ENV FLASK_APP=run.py
 ENV FLASK_ENV=production
 
 # Puerto expuesto
-EXPOSE 10000
+EXPOSE 5000
 
 CMD gunicorn --bind 0.0.0.0:$PORT -w 1 --timeout 3000 run:app
