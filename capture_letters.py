@@ -43,7 +43,7 @@ TOTAL_KEYPOINTS = NUM_HANDS_KEYPOINTS + (NUM_FACE_KEYPOINTS if face_mesh else 0)
 WORDS = [
     "adios", "alumno", "bien", "chau", "comer", "comoestas", 
     "dormir", "el", "gracias", "hola", "informe", "investigar", "leer", 
-    "legusta", "mellamo", "nolegusta", "perdon", "tiene", "tienesrazon", "timido", "yo"
+    "legusta", "mellamo", "nolegusta", "perdon", "tienesrazon", "timido", "yo"
 ]
 
 # FRASES DE EJEMPLO

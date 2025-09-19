@@ -18,10 +18,10 @@ def load_letter_sequences(data_dir='data/keypoints'):
     word_ids = get_word_ids(WORDS_JSON_PATH)
     
     # Keypoints por mano: 21 puntos * 3 coordenadas (x, y, z)
-    KEYPOINTS_PER_HAND = 63  # 21 * 3
-    MAX_HANDS = 2  # Máximo de manos que vamos a procesar
+    KEYPOINTS_PER_HAND = 63  
+    MAX_HANDS = 2  
 
-  
+    
 
     # Obtener la lista de archivos .h5
     h5_files = [f for f in os.listdir(data_dir) if f.endswith('.h5')]
@@ -37,14 +37,14 @@ def load_letter_sequences(data_dir='data/keypoints'):
                     if 'keypoints' in f:
                         data = np.array(f['keypoints'], dtype=np.float32)  # (frames, n_keypoints)
 
-                        # Padding/recorte frames
+                        # frames
                         if data.shape[0] < SEQUENCE_LENGTH:
                             pad_frames = np.zeros((SEQUENCE_LENGTH - data.shape[0], data.shape[1]), dtype=np.float32)
                             data = np.vstack([data, pad_frames])
                         elif data.shape[0] > SEQUENCE_LENGTH:
                             data = data[:SEQUENCE_LENGTH]
 
-                        # Padding/recorte keypoints
+                        # keypoints
                         if data.shape[1] < TOTAL_KEYPOINTS:
                             pad_features = np.zeros((SEQUENCE_LENGTH, TOTAL_KEYPOINTS - data.shape[1]), dtype=np.float32)
                             data = np.hstack([data, pad_features])

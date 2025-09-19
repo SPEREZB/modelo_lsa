@@ -26,4 +26,4 @@ ENV FLASK_ENV=production
 EXPOSE 10000
 
 # Comando para iniciar
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "-k", "gevent", "--timeout", "300", "run:app"]
