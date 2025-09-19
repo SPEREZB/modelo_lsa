@@ -25,4 +25,4 @@ ENV FLASK_ENV=production
 # Puerto expuesto
 EXPOSE 10000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:${PORT}", "-w", "1", "--timeout", "3000", "run:app"]
+CMD gunicorn --bind 0.0.0.0:$PORT -w 1 --timeout 3000 run:app
