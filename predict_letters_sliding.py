@@ -4,6 +4,7 @@ import mediapipe as mp
 from tensorflow.keras.models import load_model
 import json
 import os
+import time  # Para manejar el tiempo de las predicciones
 from text_to_speech import text_to_speech  # Importar la función de síntesis de voz
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -33,12 +34,15 @@ NUM_FACE_KEYPOINTS = 1404
 frame_count = 0
 last_pred = None
 last_prediction_time = 0
+prediction_start_time = {}  # Diccionario para rastrear cuándo comenzó cada predicción
+current_stable_pred = None  # Predicción estable actual
+STABLE_TIME_THRESHOLD = 5.0  # 5 segundos para considerar una predicción estable
 
 # Configuración de rendimiento
 MIN_CONSECUTIVE_FRAMES = 3  
-CONFIDENCE_THRESHOLD = 0.2  
+CONFIDENCE_THRESHOLD = 0.8
 PREDICTION_INTERVAL = 2  
-
+top_predictions = []
 # Cargar metadata
 with open(MODEL_PATH.replace('.keras', '_metadata.json'), 'r') as f:
     metadata = json.load(f)
@@ -48,9 +52,9 @@ with open(MODEL_PATH.replace('.keras', '_metadata.json'), 'r') as f:
 # Diccionario combinado: letras + palabras
 LETTERS = list("abcdefjklmnopqrsuvxz")  # Solo las letras que están en words.json
 WORDS = [
-    "adios", "alumno", "bien", "chau", "comer", "comoestas", 
-    "dormir", "el", "gracias", "hola", "informe", "investigar", "leer", 
-    "legusta", "mellamo", "nolegusta", "perdon", "tienesrazon", "timido", "yo"
+    "adios", "alumno", "aprender", "bien", "chau", "cocinar", "comer", "comoestas", 
+    "dormir", "el", "estudiar", "gracias", "hola", "informe", "investigar", "leer", 
+    "legusta", "mellamo", "nolegusta","perder", "perdon", "tienesrazon", "timido", "yo"
 ]
 
 # Convertir letras individuales a palabras de un solo carácter
@@ -88,6 +92,15 @@ face_mesh = mp_face.FaceMesh(
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 ) if include_face else None
+
+def get_top_predictions(predictions, classes, top_n=3):
+    """Obtiene las top N predicciones con sus porcentajes de confianza"""
+    # Obtener los índices de las predicciones más altas
+    top_indices = np.argsort(predictions)[-top_n:][::-1]
+    # Crear lista de tuplas (clase, confianza)
+    top_predictions = [(classes[i], predictions[i] * 100) for i in top_indices 
+                      if i < len(classes) and predictions[i] > 0.01]  # Filtrar predicciones muy bajas
+    return top_predictions
 
 # Función para extraer keypoints
 def extract_keypoints(frame):
@@ -176,18 +189,44 @@ while cap.isOpened():
     if frame_count % PREDICTION_INTERVAL == 0:
         pred = model.predict(seq_array, verbose=0)[0]  # Obtener el array de predicciones
         last_pred = pred
+        # Obtener las 3 mejores predicciones
+        top_predictions = get_top_predictions(pred, CLASSES, 3)
+     
+        for i, (cls, conf) in enumerate(top_predictions, 1):
+            print(f"{i}. {cls}: {conf:.1f}%")
     else:
         pred = last_pred if last_pred is not None else np.zeros(len(CLASSES))
     pred_idx = np.argmax(pred)
     
     # Obtener la predicción principal
     current_top_pred = CLASSES[pred_idx] if 0 <= pred_idx < len(CLASSES) else None
+    current_time = time.time()
+    
+    # Si la predicción principal ha cambiado, reiniciar el contador
     if current_top_pred != last_top_pred:
         prediction_history = []  # Reiniciar el historial ante un cambio de predicción
+        current_stable_pred = None
     last_top_pred = current_top_pred
     
-    # Verificar que el índice esté dentro del rango y cumpla con el umbral de confianza
-    if 0 <= pred_idx < len(CLASSES) and pred[pred_idx] >= CONFIDENCE_THRESHOLD:
+    # Actualizar el tiempo de inicio para la predicción actual
+    if current_top_pred is not None:
+        if current_top_pred not in prediction_start_time:
+            prediction_start_time[current_top_pred] = current_time
+    
+    # Verificar si alguna predicción ha estado presente por más de 5 segundos
+    stable_prediction = None
+    for pred_name, start_time in list(prediction_start_time.items()):
+        if current_time - start_time >= STABLE_TIME_THRESHOLD:
+            stable_prediction = pred_name
+            break
+    
+    # Si hay una predicción estable, usarla independientemente del umbral
+    if stable_prediction is not None:
+        prediction = stable_prediction
+        # Limpiar el diccionario para evitar repeticiones
+        prediction_start_time = {}
+    # Si no hay predicción estable, verificar el umbral de confianza normal
+    elif 0 <= pred_idx < len(CLASSES) and pred[pred_idx] >= CONFIDENCE_THRESHOLD:
         current_pred = CLASSES[pred_idx]
         
         # Agregar predicción al historial solo si supera el umbral
@@ -215,6 +254,7 @@ while cap.isOpened():
     if not results.multi_hand_landmarks:
         prediction = ""
         prediction_history = []  # Limpiar historial cuando no hay manos
+        prediction_start_time = {}  # Limpiar los tiempos de predicción
     # Dibujar landmarks de manos
     if results and results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
@@ -227,7 +267,18 @@ while cap.isOpened():
             )
 
         
-        # Mostrar la predicción actual en la parte superior
+        # Mostrar las 3 mejores predicciones en la pantalla
+        y_offset = 50
+        for i, (cls, conf) in enumerate(top_predictions, 1):
+            text = f"{i}. {cls}: {conf:.1f}%"
+            # Resaltar la predicción con mayor confianza
+            color = (0, 255, 0) if i == 1 and conf >= CONFIDENCE_THRESHOLD * 100 else (255, 255, 255)
+            thickness = 2 if i == 1 and conf >= CONFIDENCE_THRESHOLD * 100 else 1
+            cv2.putText(frame, text, (10, y_offset), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, thickness, cv2.LINE_AA)
+            y_offset += 25  # Espacio entre líneas
+            
+        # Mostrar la predicción actual en la parte inferior
         if prediction:
             cv2.putText(frame, f"Prediccion: {prediction}", (10, frame.shape[0] - 20), 
                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)

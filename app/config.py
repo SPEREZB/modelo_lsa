@@ -27,9 +27,9 @@ class Config:
     @property
     def CLASSES(self):
         letters = list("abcdefjklmnopqrsuvxz")
-        words = [
-            "adios", "alumno", "bien", "chau", "comer", "comoestas", 
-            "dormir", "el", "gracias", "hola", "informe", "investigar", "leer", 
-            "legusta", "mellamo", "nolegusta", "perdon", "tienesrazon", "timido", "yo"
+        words =  [
+        "adios", "alumno", "bien", "chau", "comer", "comoestas", 
+        "dormir", "el", "gracias", "hola", "informe", "investigar", "leer", 
+        "legusta", "mellamo", "nolegusta", "perdon", "tienesrazon", "timido", "yo"
         ]
         return sorted(letters + words, key=lambda x: x.lower())

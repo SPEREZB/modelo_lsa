@@ -1,0 +1,255 @@
+/* Colores principales */
+:root {
+    --primary-color: #6a1b9a;     /* Morado principal */
+    --primary-light: #9c4dca;     /* Morado claro */
+    --primary-dark: #38006b;      /* Morado oscuro */
+    --accent-color: #ff9800;      /* Naranja para acentos */
+    --background: #f5f5f5;        /* Fondo gris claro */
+    --text-primary: #333;         /* Texto principal */
+    --text-secondary: #666;       /* Texto secundario */
+    --white: #ffffff;             /* Blanco puro */
+    --success: #4caf50;           /* Verde para éxito */
+    --error: #f44336;             /* Rojo para errores */
+}
+
+/* Estilos generales */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--background);
+    color: var(--text-primary);
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+}
+
+/* Barra de navegación */
+.nav {
+    background-color: #5e35b1;  /* Morado más oscuro */
+    padding: 0.8rem 1.5rem;
+    border-radius: 10px;
+    margin: 0 auto 2.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    max-width: 800px;
+}
+
+.nav-list {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.nav-link {
+    color: white;
+    text-decoration: none;
+    padding: 0.8rem 2rem;
+    border-radius: 6px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    transition: all 0.3s ease;
+    font-size: 1.05rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.nav-link i {
+    font-size: 1.2rem;
+}
+
+.nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link.active {
+    background-color: #7e57c2;  /* Morado más claro para el activo */
+    color: white;
+    box-shadow: 0 4px 12px rgba(126, 87, 194, 0.4);
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+ 
+
+/* Responsive */
+@media (max-width: 768px) {
+    .nav {
+        padding: 0.8rem;
+        border-radius: 8px;
+    }
+    
+    .nav-list {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .nav-link {
+        width: 100%;
+        justify-content: center;
+        padding: 0.8rem 1rem;
+    }
+}
+
+/* Contenedor principal */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* Títulos */
+h1, h2, h3 {
+    color: var(--primary-dark);
+    margin-bottom: 1.5rem;
+}
+
+/* Botones */
+.btn {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn:hover {
+    background-color: var(--primary-light);
+    transform: translateY(-2px);
+}
+
+.btn-capture {
+    background-color: var(--accent-color);
+}
+
+.btn-capture:hover {
+    background-color: #f57c00;
+}
+
+/* Cámara y canvas */
+.camera-container {
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto 2rem;
+    border: 3px solid var(--primary-color);
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #000;
+}
+
+#video, #canvas {
+    width: 100%;
+    display: block;
+}
+
+#canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* Controles */
+.controls {
+    text-align: center;
+    margin: 1.5rem 0;
+}
+
+/* Estado y mensajes */
+#status {
+    margin-top: 1rem;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+/* Lista de capturas */
+#captureList {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background-color: var(--white);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Formularios */
+.word-input {
+    margin: 2rem 0;
+    text-align: center;
+}
+
+.word-input input {
+    padding: 12px;
+    font-size: 16px;
+    width: 250px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    margin-right: 0.5rem;
+    transition: border-color 0.3s ease;
+}
+
+.word-input input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* Tarjeta de predicción */
+.prediction-box {
+    background-color: var(--white);
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-top: 2rem;
+    text-align: center;
+}
+
+#result {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: var(--primary-dark);
+}
+
+#confidence {
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+    
+    .nav-list {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .nav-link {
+        justify-content: center;
+        padding: 0.8rem;
+    }
+    
+    .word-input {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .word-input input {
+        width: 100%;
+        max-width: 300px;
+        margin-right: 0;
+    }
+}

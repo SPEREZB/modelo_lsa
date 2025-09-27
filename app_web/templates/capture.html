@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<head>
+    <title>Capturar Nuevas Palabras</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style> 
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background-color: #f5f5f5;
+        margin: 0;
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+        color: #2c3e50;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    /* Estilos de navegación */
+    .nav {
+        background-color: #5e35b1; 
+        padding: 0.8rem 1.5rem;
+        border-radius: 10px;
+        margin: 0 auto 2.5rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        max-width: 800px;
+    }
+    
+    .nav-list {
+        display: flex;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        justify-content: center;
+        gap: 1rem;
+    }
+
+.nav-link {
+    color: white;
+    text-decoration: none;
+    padding: 0.8rem 2rem;
+    border-radius: 6px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    transition: all 0.3s ease;
+    font-size: 1.05rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.nav-link i {
+    font-size: 1.2rem;
+}
+
+.nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link.active {
+    background-color: #7e57c2;  /* Morado más claro para el activo */
+    color: white;
+    box-shadow: 0 4px 12px rgba(126, 87, 194, 0.4);
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+ 
+
+/* Responsive */
+@media (max-width: 768px) {
+    .nav {
+        padding: 0.8rem;
+        border-radius: 8px;
+    }
+    
+    .nav-list {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .nav-link {
+        width: 100%;
+        justify-content: center;
+        padding: 0.8rem 1rem;
+    }
+}
+</style>
+</head>
+<body>
+    <div class="container">
+        <nav class="nav">
+            <ul class="nav-list">
+                <li>
+                    <a href="/" class="nav-link active">
+                        <i class="fas fa-hands"></i>
+                        <span>Detectar Palabras</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/api/capture" class="nav-link">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>Agregar Palabras</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <h1>Capturar Nuevas Palabras</h1>
+        
+        <div class="word-input">
+            <input type="text" id="wordInput" placeholder="Ingresa la palabra" />
+            <button id="startButton" class="btn">Iniciar Cámara</button>
+        </div>
+        
+        <div class="camera-container" style="display: none;">
+            <video id="video" width="640" height="480" autoplay muted></video>
+            <canvas id="canvas" width="640" height="480"></canvas>
+        </div>
+        
+        <div class="controls" style="display: none;">
+            <button id="captureButton" class="btn btn-capture">Capturar Imagen</button>
+            <div id="status">Presiona "Capturar Imagen" para guardar</div>
+            <div id="result"></div>
+            <div id="confidence"></div>
+        </div>
+        
+        
+        <div id="captureList">
+            <h3>Capturas guardadas:</h3>
+            <div id="captureItems"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const startButton = document.getElementById('startButton');
+            const captureButton = document.getElementById('captureButton');
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
+            const confidenceDiv = document.getElementById('confidence');
+            const wordInput = document.getElementById('wordInput');
+            const captureItems = document.getElementById('captureItems');
+            const cameraContainer = document.querySelector('.camera-container');
+            const controls = document.querySelector('.controls');
+            
+            let stream = null;
+            let isRunning = false;
+            let animationId = null;
+            let lastUpdate = 0;
+            const PREDICTION_INTERVAL = 200; // ms
+            let captures = [];
+
+            // Función para iniciar la cámara
+            async function startCamera() {
+                try {
+                    // Mostrar contenedores de cámara y controles
+                    cameraContainer.style.display = 'block';
+                    controls.style.display = 'block';
+                    
+                    // Detener la cámara si ya está activa
+                    if (stream) {
+                        stopCamera();
+                    }
+                    
+                    // Iniciar la cámara con configuraciones específicas
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            facingMode: 'user',
+                            frameRate: { ideal: 30 }
+                        },
+                        audio: false
+                    });
+                    
+                    video.srcObject = stream;
+                    
+                    // Esperar a que el video esté listo
+                    await new Promise((resolve) => {
+                        video.onloadedmetadata = () => {
+                            video.play().then(resolve).catch(console.error);
+                        };
+                    });
+                    
+                    // Configurar el canvas con las dimensiones del video
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    startButton.textContent = 'Detener Cámara';
+                    statusDiv.textContent = 'Cámara lista. Realiza la seña con tus manos.';
+                    statusDiv.style.color = 'green';
+                    isRunning = true;
+                    
+                    // Iniciar el procesamiento de frames
+                    processFrame();
+                    
+                    return true;
+                    
+                } catch (err) {
+                    console.error("Error al acceder a la cámara:", err);
+                    statusDiv.textContent = `Error al acceder a la cámara: ${err.message}`;
+                    statusDiv.style.color = 'red';
+                    return false;
+                }
+            }
+
+            // Función para detener la cámara
+            function stopCamera() {
+                isRunning = false;
+                
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+                
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    stream = null;
+                }
+                
+                if (video.srcObject) {
+                    video.srcObject = null;
+                }
+                
+                // Limpiar el canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                startButton.textContent = 'Iniciar Cámara';
+                statusDiv.textContent = 'Cámara detenida';
+                statusDiv.style.color = 'inherit';
+                resultDiv.textContent = '';
+                confidenceDiv.textContent = '';
+            }
+
+            // Función para procesar los frames del video
+            async function processFrame() {
+                if (!isRunning) return;
+                
+                const now = Date.now();
+                
+                // Procesar frame cada PREDICTION_INTERVAL ms
+                if (now - lastUpdate >= PREDICTION_INTERVAL) {
+                    lastUpdate = now;
+                    
+                    try {
+                        // Asegurarse de que el video tenga dimensiones válidas
+                        if (video.videoWidth === 0 || video.videoHeight === 0) {
+                            animationId = requestAnimationFrame(processFrame);
+                            return;
+                        }
+                        
+                        // Limpiar el canvas
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Dibujar el frame en el canvas (espejado)
+                        ctx.save();
+                        ctx.scale(-1, 1);  // Invertir horizontalmente
+                        ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+                        ctx.restore();
+                        
+                        // Aquí puedes agregar el código para procesar la imagen
+                        // y enviarla al servidor si es necesario
+                    } catch (err) {
+                        console.error('Error al procesar el frame:', err);
+                    }
+                }
+                
+                animationId = requestAnimationFrame(processFrame);
+                
+                // Función para capturar una imagen
+                async function captureImage() {
+                    if (!stream) return;
+                    
+                    const word = wordInput.value.trim();
+                    if (!word) {
+                        statusDiv.textContent = 'Por favor, ingresa una palabra primero';
+                        statusDiv.style.color = 'red';
+                        return;
+                    }
+                    
+                    try {
+                        // Crear un canvas temporal para la captura
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = canvas.width;
+                        tempCanvas.height = canvas.height;
+                        const tempCtx = tempCanvas.getContext('2d');
+                        
+                        // Dibujar el frame actual en el canvas temporal
+                        tempCtx.save();
+                        tempCtx.scale(-1, 1);
+                        tempCtx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+                        tempCtx.restore();
+                        
+                        // Convertir a blob para enviar al servidor
+                        const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', 0.9));
+                        
+                        // Crear FormData para enviar la imagen
+                        const formData = new FormData();
+                        formData.append('image', blob, `${word}_${Date.now()}.jpg`);
+                        formData.append('word', word);
+                        
+                        // Mostrar indicador de carga
+                        const originalText = captureButton.textContent;
+                        captureButton.disabled = true;
+                        captureButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+                        
+                        // Enviar al servidor
+                        const response = await fetch('/api/capture', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            // Agregar a la lista de capturas
+                            captures.push({
+                                word: word,
+                                timestamp: new Date().toLocaleString(),
+                                filename: result.filename
+                            });
+                            
+                            // Actualizar la interfaz
+                            updateCaptureList();
+                            
+                            statusDiv.textContent = `Imagen guardada para "${word}"`;
+                            statusDiv.style.color = 'green';
+                        } else {
+                            throw new Error(result.error || 'Error al guardar la imagen');
+                        }
+                        
+                    } catch (error) {
+                        console.error('Error al procesar el frame:', error);
+                        statusDiv.textContent = 'Error al procesar la imagen';
+                        statusDiv.style.color = 'red';
+                    }
+                }
+                
+                animationId = requestAnimationFrame(processFrame);
+            }
+
+            // Control del botón de inicio/detención
+            startButton.addEventListener('click', () => {
+                if (isRunning) {
+                    stopCamera();
+                } else {
+                    startCamera();
+                }
+            });
+
+            // Iniciar cámara automáticamente al cargar la página
+            startCamera();
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+ </body>
+</html>

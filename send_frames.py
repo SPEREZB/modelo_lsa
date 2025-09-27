@@ -8,7 +8,7 @@ from mediapipe.tasks.python import vision
 import json
 
 def draw_landmarks_on_image(rgb_image, detection_result):
-    """Dibuja los landmarks de las manos en la imagen (versión para mp.solutions.hands)."""
+    """Dibuja los landmarks de las manos en la imagen """
     annotated_image = np.copy(rgb_image)
 
     if detection_result.multi_hand_landmarks:
@@ -23,7 +23,7 @@ def draw_landmarks_on_image(rgb_image, detection_result):
     return annotated_image
 
 
-def send_video(api_url, delay=0.033):  # ~30 FPS
+def send_video(api_url, delay=0.033):  
     # Inicializar MediaPipe Hands
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
@@ -52,11 +52,9 @@ def send_video(api_url, delay=0.033):  # ~30 FPS
                 
             # Voltear la imagen horizontalmente para una visualización tipo selfie
             frame = cv2.flip(frame, 1)
-            
-            # Convertir a RGB para MediaPipe
+             
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            # Procesar con MediaPipe
+             
             results = hands.process(rgb_frame)
             
             # Dibujar landmarks si se detectan manos
@@ -79,7 +77,7 @@ def send_video(api_url, delay=0.033):  # ~30 FPS
                     response = requests.post(
                         api_url,
                         files={'image': ('frame.jpg', img_encoded.tobytes(), 'image/jpeg')},
-                        timeout=0.5  # Timeout reducido a 0.5 segundos
+                        timeout=0.5  
                     )
                     
                     if response.status_code == 200:
