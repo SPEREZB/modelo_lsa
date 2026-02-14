@@ -3,7 +3,9 @@
 __pycache__
 tmp
 # samples
-frame_actions
-data
+frame_actions 
 videos
 .old
+models
+data
+New_Code_Optimizado

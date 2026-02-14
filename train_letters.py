@@ -10,7 +10,7 @@ from constants import *
 from helpers import get_word_ids
 import json 
 SEQUENCE_LENGTH = 107
-TOTAL_KEYPOINTS = 1530
+TOTAL_KEYPOINTS = 126  # Solo puntos de manos (21 puntos * 3 coordenadas * 2 manos)
 
 def load_letter_sequences(data_dir='data/keypoints'):
     sequences = []

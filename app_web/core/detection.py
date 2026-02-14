@@ -1,10 +1,15 @@
 import os
+import sys
 import cv2
 import numpy as np
 import mediapipe as mp
 import h5py
 from typing import Tuple, List, Optional, Dict, Any
 from pathlib import Path
+
+# Agregar el directorio padre al path para importar constants
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from constants import WordsConfig
 
 # Constantes
 SEQUENCE_LENGTH = 107  # Número fijo de frames por muestra
@@ -14,11 +19,7 @@ DEFAULT_OUTPUT_DIR = "captured_data"
 DEFAULT_MODEL_PATH = "models"
 
 # Palabras permitidas
-WORDS = [
-    "adios", "alumno", "aprender", "bien", "chau", "cocinar", "comer", "comoestas", 
-    "dormir", "el", "estudiar", "gracias", "hola", "informe", "investigar", "leer", 
-    "legusta", "mellamo", "nolegusta", "perder", "perdon", "tienesrazon", "timido", "yo"
-]
+WORDS = WordsConfig.WORDS
 
 # Inicializar MediaPipe
 mp_hands = mp.solutions.hands
@@ -29,9 +30,10 @@ class HandDetector:
     def __init__(self, 
                  static_image_mode: bool = False,
                  max_num_hands: int = 2,
-                 min_detection_confidence: float = 0.5,
-                 min_tracking_confidence: float = 0.5):
+                 min_detection_confidence: float = 0.6,
+                 min_tracking_confidence: float = 0.6):
         
+        # Configuración para evitar el error de sincronización de tiempo
         self.hands = mp_hands.Hands(
             static_image_mode=static_image_mode,
             max_num_hands=max_num_hands,
@@ -39,14 +41,29 @@ class HandDetector:
             min_tracking_confidence=min_tracking_confidence
         )
     
-    def detect(self, image: np.ndarray) -> any:
-       
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        return self.hands.process(image_rgb)
+    def detect(self, image: np.ndarray):
+        """Detecta las manos en la imagen."""
+        if image is None or image.size == 0:
+            return None
+            
+        try:
+            # Convertir de BGR a RGB (optimizado: no copiar si no es necesario)
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # Marcar como no escribible para optimizar MediaPipe
+            image_rgb.flags.writeable = False
+            
+            # Procesar la imagen
+            results = self.hands.process(image_rgb)
+            
+            return results
+        except Exception as e:
+            print(f"Error en HandDetector.detect: {str(e)}")
+            return None
     
     def close(self):
         """Libera los recursos del detector."""
-        self.hands.close()
+        if hasattr(self, 'hands') and self.hands:
+            self.hands.close()
 
 
 class FaceDetector:
@@ -60,38 +77,51 @@ class FaceDetector:
             static_image_mode=static_image_mode,
             max_num_faces=max_num_faces,
             min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence
+            min_tracking_confidence=min_tracking_confidence,
+            refine_landmarks=True  # Mejorar la precisión de los landmarks
         )
     
-    def detect(self, image: np.ndarray) -> any:
-                
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        return self.face_mesh.process(image_rgb)
+    def detect(self, image: np.ndarray):
+        """Detecta el rostro en la imagen."""
+        if image is None or image.size == 0:
+            return None
+            
+        try:
+            # Convertir de BGR a RGB
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image_rgb.flags.writeable = False
+            
+            # Procesar la imagen
+            results = self.face_mesh.process(image_rgb)
+            
+            # Hacer que la imagen sea modificable de nuevo
+            image_rgb.flags.writeable = True
+            
+            return results
+        except Exception as e:
+            print(f"Error en FaceDetector.detect: {str(e)}")
+            return None
     
     def close(self):
-        self.face_mesh.close()
+        """Libera los recursos del detector."""
+        if hasattr(self, 'face_mesh') and self.face_mesh:
+            self.face_mesh.close()
 
 
 def extract_keypoints(hand_results: any, 
                      face_results: Optional[any] = None, 
                      include_face: bool = False,
-                     num_features: int = 1530) -> np.ndarray:
+                     num_features: int = 126) -> np.ndarray:  # Solo puntos de manos (21 puntos * 3 coordenadas * 2 manos)
   
     keypoints = []
-
-    # Extraer keypoints de manos
-    if hand_results.multi_hand_landmarks:
+    
+    # Solo extraer puntos de manos
+    if hand_results and hasattr(hand_results, 'multi_hand_landmarks') and hand_results.multi_hand_landmarks:
         for hand_landmarks in hand_results.multi_hand_landmarks:
             for lm in hand_landmarks.landmark:
                 keypoints.extend([lm.x, lm.y, lm.z])
     
-    # Extraer keypoints de la cara si está habilitado
-    if include_face and face_results and face_results.multi_face_landmarks:
-        for face_landmarks in face_results.multi_face_landmarks:
-            for lm in face_landmarks.landmark:
-                keypoints.extend([lm.x, lm.y, lm.z])
-    
-    # Asegurar que tenemos el número correcto de características
+    # Asegurar que tenemos exactamente 126 características
     if len(keypoints) < num_features:
         keypoints.extend([0.0] * (num_features - len(keypoints)))
     elif len(keypoints) > num_features:

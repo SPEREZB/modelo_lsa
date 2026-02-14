@@ -1,7 +1,9 @@
 import cv2
 import os
 import numpy as np
-from constants import KEYPOINTS_PATH, DATA_PATH
+import json
+import datetime
+from constants import KEYPOINTS_PATH, DATA_PATH, KEYPOINTS_JSON_PATH, WordsConfig
 import mediapipe as mp
 import h5py
 
@@ -40,11 +42,7 @@ else:
 TOTAL_KEYPOINTS = NUM_HANDS_KEYPOINTS + (NUM_FACE_KEYPOINTS if face_mesh else 0)
 
 # --- Palabras permitidas ---
-WORDS = [
-    "adios", "alumno", "aprender", "bien", "chau", "cocinar", "comer", "comoestas", 
-    "dormir", "el", "estudiar", "gracias", "hola", "informe", "investigar", "leer", 
-    "legusta", "mellamo", "nolegusta", "perder", "perdon", "tienesrazon", "timido", "yo"
-]
+WORDS = WordsConfig.WORDS
 
 # FRASES DE EJEMPLO
 # EL ALUMNO LE GUSTA LEER
@@ -54,7 +52,8 @@ WORDS = [
  
  
 def create_directories():
-    os.makedirs(KEYPOINTS_PATH, exist_ok=True)
+    os.makedirs(KEYPOINTS_PATH, exist_ok=True) 
+    os.makedirs(KEYPOINTS_JSON_PATH, exist_ok=True) 
     os.makedirs(os.path.join(DATA_PATH, "videos"), exist_ok=True)
     os.makedirs(os.path.join(DATA_PATH, "frames"), exist_ok=True)
 
@@ -94,6 +93,47 @@ def get_keypoints(frame):
     keypoints = normalize_landmarks(keypoints)
     return frame, keypoints
 
+def convert_to_serializable(obj):
+    """Convierte objetos NumPy a tipos nativos de Python"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, list):
+        return [convert_to_serializable(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    return obj
+
+def save_keypoints_json(sequence, label, sample_num):
+    """Guarda los keypoints en un archivo JSON con formato específico para el avatar"""
+    # Crear nombre de archivo con formato: letra_AAAAMMDD_HHMMSS.json
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = os.path.join(KEYPOINTS_JSON_PATH, f"{label.lower()}_{timestamp}.json")
+    
+    # Estructura del JSON para el avatar
+    data = {
+        'metadata': {
+            'label': label,
+            'frames': len(sequence) if hasattr(sequence, '__len__') else 1,
+            'timestamp': timestamp,
+            'version': '1.0'
+        },
+        'keypoints': convert_to_serializable(sequence)
+    }
+    
+    # Asegurar que el directorio existe
+    os.makedirs(KEYPOINTS_JSON_PATH, exist_ok=True)
+    
+    # Guardar el archivo
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    print(f"✅ Keypoints guardados en: {output_file}")
+    return output_file
+
 def save_keypoints_h5(sequence, label, sample_num):
     if len(sequence) < SEQUENCE_LENGTH:
         padding = np.zeros((SEQUENCE_LENGTH - len(sequence), TOTAL_KEYPOINTS), dtype=np.float32)
@@ -106,13 +146,18 @@ def save_keypoints_h5(sequence, label, sample_num):
     output_file = os.path.join(KEYPOINTS_PATH, f"{label.lower().replace(' ','_')}_{sample_num}.h5")
     with h5py.File(output_file, 'w') as f:
         f.create_dataset('keypoints', data=sequence)
-        f.create_dataset('label', data=np.string_(label))
+        # Guardar la etiqueta como string UTF-8 para soportar caracteres como ñ y acentos
+        str_dtype = h5py.string_dtype(encoding='utf-8')
+        f.create_dataset('label', data=label, dtype=str_dtype)
     print(f"Datos guardados en: {output_file} - Forma: {sequence.shape}")
+    return output_file
 
-def capture_label(label, sample_num):
+def capture_label(label, sample_num, output_format, capture_limit=None):
     cap = cv2.VideoCapture(0)
     frames = []
     recording = False
+    frame_count = 0
+    limit = capture_limit or SEQUENCE_LENGTH
 
     print(f"Presiona 's' para empezar a grabar: {label}")
     print("Presiona 'q' para terminar la grabación")
@@ -126,9 +171,11 @@ def capture_label(label, sample_num):
 
         if recording:
             frames.append(keypoints)
+            frame_count += 1
+            print(f"Capturando frame {frame_count}/{limit}", end='\r')
 
         if recording:
-            cv2.putText(frame, f"Grabando: {label} ({len(frames)}/{SEQUENCE_LENGTH})",
+            cv2.putText(frame, f"Grabando: {label} ({len(frames)}/{limit})",
                         (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         else:
             cv2.putText(frame, f"Presiona 's' para grabar: {label}", 
@@ -141,21 +188,61 @@ def capture_label(label, sample_num):
         elif key == ord('q'):
             break
 
-        if recording and len(frames) >= SEQUENCE_LENGTH:
-            print(f"Grabación completa para {label}")
+        if recording and len(frames) >= limit:
             break
 
     cap.release()
     cv2.destroyAllWindows()
-
+    
     if frames:
-        save_keypoints_h5(frames, label, sample_num)
+        if output_format == 'h5':
+            output_file = save_keypoints_h5(frames, label, sample_num)
+        else:
+            output_file = save_keypoints_json(frames, label, sample_num)
+        print(f"\nCaptura completada. Keypoints guardados en: {output_file}")
     else:
         print("No se capturaron datos para guardar.")
+
+def find_missing_samples(files, label):
+    """Encuentra los números de muestra faltantes en la secuencia"""
+    # Extraer los números de muestra de los archivos existentes
+    sample_numbers = []
+    prefix = f"{label.lower().replace(' ','_')}_"
+    
+    for f in files:
+        if f.startswith(prefix) and f.endswith('.h5'):
+            try:
+                num = int(f[len(prefix):-3])  # Extraer número del nombre del archivo
+                sample_numbers.append(num)
+            except ValueError:
+                continue
+    
+    if not sample_numbers:
+        return list(range(1, 51))  # Si no hay muestras, todas faltan
+    
+    # Encontrar huecos en la secuencia
+    max_sample = max(sample_numbers)
+    all_samples = set(range(1, max_sample + 1))
+    existing_samples = set(sample_numbers)
+    missing = sorted(list(all_samples - existing_samples))
+    
+    return missing
 
 def main():
     create_directories()
     MAX_SAMPLES = 50
+    print("Seleccione el formato de salida:")
+    print("1. JSON")
+    print("2. H5")
+    fmt_opt = input("Ingrese 1 o 2: ").strip()
+    output_format = 'h5' if fmt_opt == '2' else 'json'
+    json_capture_limit = None
+    if output_format == 'json':
+        print("Seleccione la cantidad de frames para JSON:")
+        print("1. 10 frames")
+        print("2. 107 frames")
+        json_opt = input("Ingrese 1 o 2: ").strip()
+        json_capture_limit = 10 if json_opt == '1' else SEQUENCE_LENGTH
 
     while True:
         label = input("\nIngrese la letra (a-z) o palabra de la lista o 'salir' para terminar: ").lower()
@@ -164,22 +251,61 @@ def main():
             break
 
         if (len(label) == 1 and label.isalpha()) or (label in WORDS):
-            files = [f for f in os.listdir(KEYPOINTS_PATH) if f.startswith(f"{label.lower().replace(' ','_')}_") and f.endswith('.h5')]
-            current_samples = len(files)
-
-            if current_samples >= MAX_SAMPLES:
-                print(f"Ya hay {MAX_SAMPLES} muestras para {label}.")
-                continue
-
-            print(f"\n--- Grabando: {label} (Actualmente {current_samples} muestras) ---")
-            for sample_num in range(current_samples + 1, MAX_SAMPLES + 1):
-                capture_label(label, sample_num)
-                if sample_num < MAX_SAMPLES:
+            if output_format == 'h5':
+                files = [f for f in os.listdir(KEYPOINTS_PATH) if f.startswith(f"{label.lower().replace(' ','_')}_") and f.endswith('.h5')]
+                current_samples = len(files)
+                missing_samples = find_missing_samples(files, label)
+                if current_samples >= MAX_SAMPLES and not missing_samples:
+                    print(f"\n✅ Ya hay {MAX_SAMPLES} muestras .h5 para {label} y no faltan muestras.")
+                    print("Puede seguir grabando en formato JSON.")
+                    use_json = input("¿Desea grabar muestras adicionales en JSON? (s/n): ").lower()
+                    if use_json == 's':
+                        print("Seleccione la cantidad de frames para JSON:")
+                        print("1. 10 frames")
+                        print("2. 107 frames")
+                        json_opt = input("Ingrese 1 o 2: ").strip()
+                        json_capture_limit = 10 if json_opt == '1' else SEQUENCE_LENGTH
+                        print(f"\n--- {label.upper()} (JSON) ---")
+                        sample_num = 1
+                        while True:
+                            capture_label(label, sample_num, 'json', capture_limit=json_capture_limit)
+                            cont = input(f"¿Desea grabar otra muestra JSON para {label}? (s/n): ")
+                            if cont.lower() != 's':
+                                break
+                    continue
+                print(f"\n--- {label.upper()} ---")
+                print(f"Muestras existentes: {current_samples}/{MAX_SAMPLES}")
+                if missing_samples:
+                    print(f"\n⚠️  Muestras faltantes: {', '.join(map(str, missing_samples))}")
+                    fill_gap = input(f"¿Desea grabar las muestras faltantes para {label}? (s/n): ").lower()
+                    if fill_gap == 's':
+                        for sample_num in missing_samples:
+                            print(f"\nGrabando muestra faltante #{sample_num}...")
+                            capture_label(label, sample_num, output_format)
+                            if sample_num < MAX_SAMPLES:
+                                cont = input(f"¿Desea grabar la siguiente muestra faltante? (s/n): ")
+                                if cont.lower() != 's':
+                                    break
+                        continue
+                if current_samples < MAX_SAMPLES:
+                    print(f"\nIniciando grabación de muestras nuevas para {label}...")
+                    start_num = max([int(f.split('_')[-1].split('.')[0]) for f in files] + [0]) + 1 if files else 1
+                    for sample_num in range(start_num, MAX_SAMPLES + 1):
+                        capture_label(label, sample_num, output_format)
+                        if sample_num < MAX_SAMPLES:
+                            cont = input(f"¿Desea grabar otra muestra para {label}? (s/n): ")
+                            if cont.lower() != 's':
+                                break
+            else:
+                print(f"\n--- {label.upper()} ---")
+                sample_num = 1
+                while True:
+                    capture_label(label, sample_num, output_format, capture_limit=json_capture_limit)
                     cont = input(f"¿Desea grabar otra muestra para {label}? (s/n): ")
                     if cont.lower() != 's':
                         break
         else:
-            print("Entrada inválida. Solo letras a-z o palabras de la lista.")
+            print("❌ Entrada inválida. Solo letras a-z o palabras de la lista.")
 
 if __name__ == "__main__":
     main()

@@ -4,6 +4,7 @@ import mediapipe as mp
 from tensorflow.keras.models import load_model
 import json
 import os
+from constants import WordsConfig
 import time  # Para manejar el tiempo de las predicciones
 from text_to_speech import text_to_speech  # Importar la función de síntesis de voz
 from mediapipe.tasks import python
@@ -28,8 +29,8 @@ include_face = (detection_mode == "2")
 print(f"Modo de detección: {'Manos y rostro' if include_face else 'Solo manos'}")
 
 # Configuración de keypoints
-NUM_HANDS_KEYPOINTS = 126  
-NUM_FACE_KEYPOINTS = 1404  
+NUM_HANDS_KEYPOINTS = 126  # 21 puntos * 3 coordenadas * 2 manos
+NUM_FEATURES = NUM_HANDS_KEYPOINTS  # Solo usamos puntos de manos
 
 frame_count = 0
 last_pred = None
@@ -38,30 +39,23 @@ prediction_start_time = {}  # Diccionario para rastrear cuándo comenzó cada pr
 current_stable_pred = None  # Predicción estable actual
 STABLE_TIME_THRESHOLD = 5.0  # 5 segundos para considerar una predicción estable
 
-# Configuración de rendimiento
-MIN_CONSECUTIVE_FRAMES = 3  
-CONFIDENCE_THRESHOLD = 0.8
-PREDICTION_INTERVAL = 2  
+# Configuración de rendimiento mejorada
+MIN_CONSECUTIVE_FRAMES = 10  # Aumentado de 3 a 10 para requerir más consistencia
+MIN_STABLE_FRAMES = 15       # Mínimo de frames para considerar una predicción estable
+CONFIDENCE_THRESHOLD = 0.85  # Aumentado el umbral de confianza
+PREDICTION_INTERVAL = 3       # Reducir la frecuencia de predicciones para mejor rendimiento
 top_predictions = []
+stable_prediction_frames = 0  # Contador de frames estables
 # Cargar metadata
 with open(MODEL_PATH.replace('.keras', '_metadata.json'), 'r') as f:
     metadata = json.load(f)
     SEQUENCE_LENGTH = metadata['max_sequence_length']  # Ej: 107
-    NUM_FEATURES = metadata['num_features'] if 'num_features' in metadata else 1530  # Debe coincidir con el modelo
+    NUM_FEATURES = metadata.get('num_features', NUM_HANDS_KEYPOINTS)  # Usar el valor guardado o el predeterminado (solo manos)
 
 # Diccionario combinado: letras + palabras
-LETTERS = list("abcdefjklmnopqrsuvxz")  # Solo las letras que están en words.json
-WORDS = [
-    "adios", "alumno", "aprender", "bien", "chau", "cocinar", "comer", "comoestas", 
-    "dormir", "el", "estudiar", "gracias", "hola", "informe", "investigar", "leer", 
-    "legusta", "mellamo", "nolegusta","perder", "perdon", "tienesrazon", "timido", "yo"
-]
-
-# Convertir letras individuales a palabras de un solo carácter
-letters_as_words = [letra for letra in LETTERS]
-
-# Combinar letras y palabras y ordenarlas alfabéticamente
-CLASSES = sorted(letters_as_words + WORDS, key=lambda x: x.lower())
+LETTERS = WordsConfig.LETTERS
+WORDS = WordsConfig.WORDS
+CLASSES = WordsConfig.get_classes()
 
 # Verificar que tenemos 45 clases (27 letras + 18 palabras)
 print(f"Número de clases: {len(CLASSES)}")
@@ -220,35 +214,44 @@ while cap.isOpened():
             stable_prediction = pred_name
             break
     
-    # Si hay una predicción estable, usarla independientemente del umbral
-    if stable_prediction is not None:
-        prediction = stable_prediction
-        # Limpiar el diccionario para evitar repeticiones
-        prediction_start_time = {}
-    # Si no hay predicción estable, verificar el umbral de confianza normal
-    elif 0 <= pred_idx < len(CLASSES) and pred[pred_idx] >= CONFIDENCE_THRESHOLD:
+    # Sistema de predicción mejorado
+    if 0 <= pred_idx < len(CLASSES) and pred[pred_idx] >= CONFIDENCE_THRESHOLD:
         current_pred = CLASSES[pred_idx]
         
-        # Agregar predicción al historial solo si supera el umbral
-        prediction_history.append((current_pred, pred[pred_idx]))  # Guardar predicción y confianza
+        # Si es la misma predicción que la anterior, incrementar el contador
+        if current_pred == last_top_pred:
+            current_stable_frames += 1
+        else:
+            current_stable_frames = 1
+            
+        last_top_pred = current_pred
         
-        # Mantener solo las últimas N predicciones
-        if len(prediction_history) > MIN_CONSECUTIVE_FRAMES:
-            prediction_history.pop(0)
+        # Solo considerar la predicción si ha sido estable por suficientes frames
+        if current_stable_frames >= MIN_STABLE_FRAMES:
+            # Agregar predicción al historial
+            prediction_history.append((current_pred, pred[pred_idx]))
             
-            # Obtener la predicción más común en el historial
-            pred_counts = {}
-            for p, conf in prediction_history:
-                pred_counts[p] = pred_counts.get(p, 0) + conf  # Ponderar por confianza
-            
-            if pred_counts:
-                best_pred = max(pred_counts.items(), key=lambda x: x[1])[0]
-                # Solo actualizar si hay suficiente confianza
-                if pred_counts[best_pred] >= (MIN_CONSECUTIVE_FRAMES * CONFIDENCE_THRESHOLD):
-                    prediction = best_pred
+            # Mantener un historial razonable
+            if len(prediction_history) > MIN_CONSECUTIVE_FRAMES:
+                prediction_history.pop(0)
+                
+                # Calcular la confianza promedio de la predicción
+                pred_confidence = sum(conf for p, conf in prediction_history if p == current_pred)
+                avg_confidence = pred_confidence / MIN_CONSECUTIVE_FRAMES
+                
+                # Solo aceptar si la confianza promedio es alta
+                if avg_confidence >= CONFIDENCE_THRESHOLD * 1.2:  # Umbral más estricto para la media
+                    prediction = current_pred
+                    # Si hay una predicción estable por suficiente tiempo, reiniciar contadores
+                    if stable_prediction is not None and current_pred == stable_prediction:
+                        prediction_history = []
+                        current_stable_frames = 0
+                        prediction_start_time = {}
     else:
-        # Si no se alcanza el umbral de confianza, no hacer predicción
-        prediction = ""
+        # Si la confianza es baja, reiniciar contadores
+        current_stable_frames = 0
+        last_top_pred = None
+        prediction = ""  # No hacer predicción si la confianza es baja
     
     # Limpiar la predicción si no hay manos
     if not results.multi_hand_landmarks:
@@ -267,20 +270,60 @@ while cap.isOpened():
             )
 
         
-        # Mostrar las 3 mejores predicciones en la pantalla
-        y_offset = 50
+        # Mostrar información de análisis en tiempo real
+        y_offset = 30
+        
+        # Barra de progreso de estabilidad
+        stability_pct = min(100, (current_stable_frames / MIN_STABLE_FRAMES) * 100)
+        cv2.rectangle(frame, (10, y_offset), (210, y_offset + 15), (50, 50, 50), -1)
+        cv2.rectangle(frame, (10, y_offset), (10 + int(2 * stability_pct), y_offset + 15), 
+                     (0, int(255 * (stability_pct/100)), int(255 * (1 - stability_pct/200))), -1)
+        cv2.putText(frame, f"Estabilidad: {int(stability_pct)}%", (15, y_offset + 12), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
+        y_offset += 30
+        
+        # Título de las predicciones
+        cv2.putText(frame, "Predicciones:", (10, y_offset), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+        y_offset += 25
+        
+        # Mostrar las 3 mejores predicciones
         for i, (cls, conf) in enumerate(top_predictions, 1):
-            text = f"{i}. {cls}: {conf:.1f}%"
-            # Resaltar la predicción con mayor confianza
-            color = (0, 255, 0) if i == 1 and conf >= CONFIDENCE_THRESHOLD * 100 else (255, 255, 255)
-            thickness = 2 if i == 1 and conf >= CONFIDENCE_THRESHOLD * 100 else 1
-            cv2.putText(frame, text, (10, y_offset), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, thickness, cv2.LINE_AA)
-            y_offset += 25  # Espacio entre líneas
+            text = f"{i}. {cls.upper()}: {conf:.1f}%"
+            is_high_confidence = conf >= CONFIDENCE_THRESHOLD * 100
+            is_stable = current_stable_frames >= MIN_STABLE_FRAMES and cls == last_top_pred
             
-        # Mostrar la predicción actual en la parte inferior
-        if prediction:
-            cv2.putText(frame, f"Prediccion: {prediction}", (10, frame.shape[0] - 20), 
+            if is_stable and is_high_confidence:
+                color = (0, 255, 0)  # Verde para predicción estable y confiable
+                thickness = 1
+                # Fondo para mejor legibilidad
+                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
+                cv2.rectangle(frame, (10, y_offset - 20), (20 + text_size[0], y_offset + 5), 
+                            (0, 0, 0), -1)
+            elif is_high_confidence:
+                color = (0, 255, 255)  # Amarillo para alta confianza pero inestable
+                thickness = 1
+            else:
+                color = (200, 200, 200)  # Gris para baja confianza
+                thickness = 1
+                
+            cv2.putText(frame, text, (15, y_offset), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, thickness, cv2.LINE_AA)
+            y_offset += 25
+        
+        # Mostrar la predicción final cuando sea estable
+        if prediction and current_stable_frames >= MIN_STABLE_FRAMES:
+            # Fondo semitransparente para mejor legibilidad
+            overlay = frame.copy()
+            cv2.rectangle(overlay, (0, frame.shape[0] - 50), (frame.shape[1], frame.shape[0]), (0, 0, 0), -1)
+            alpha = 0.7  # Factor de transparencia
+            cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+            
+            # Texto de predicción
+            text = f"SEÑAL DETECTADA: {prediction.upper()}"
+            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
+            text_x = (frame.shape[1] - text_size[0]) // 2  # Centrar texto
+            cv2.putText(frame, text, (text_x, frame.shape[0] - 15), 
                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
         
         # Hablar la predicción solo si es diferente a la última hablada

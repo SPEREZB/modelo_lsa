@@ -19,7 +19,7 @@ COPY . .
 RUN mkdir -p /app/models
 
 # Variables de entorno
-ENV FLASK_APP=run.py
+ENV FLASK_APP=run_web.py
 ENV FLASK_ENV=production
  
-CMD gunicorn --bind 0.0.0.0:$PORT -w 1 --timeout 3000 run:app
+CMD gunicorn --bind 0.0.0.0:$PORT -w 1 --timeout 3000 run_web:app
