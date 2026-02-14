@@ -1,7 +1,7 @@
 import cv2
 import os
 import numpy as np
-from constants import KEYPOINTS_PATH, DATA_PATH
+from constants import KEYPOINTS_PATH, DATA_PATH, WordsConfig
 import mediapipe as mp
 import h5py
 
@@ -40,11 +40,7 @@ else:
 TOTAL_KEYPOINTS = NUM_HANDS_KEYPOINTS + (NUM_FACE_KEYPOINTS if face_mesh else 0)
 
 # --- Palabras permitidas ---
-WORDS = [
-    "adios", "alumno", "aprender", "bien", "chau", "cocinar", "comer", "comoestas", 
-    "dormir", "el", "estudiar", "gracias", "hola", "informe", "investigar", "leer", 
-    "legusta", "mellamo", "nolegusta", "perder", "perdon", "tienesrazon", "timido", "yo"
-]
+WORDS = WordsConfig.WORDS
 
 # FRASES DE EJEMPLO
 # EL ALUMNO LE GUSTA LEER

@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avatar de Lenguaje de Señas</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            background-color: #f5f5f5;
+        }
+        /* Estilos de navegación tomados de index.html */
+        .nav {
+            background-color: #5e35b1;
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            margin: 0 auto 1.2rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            max-width: 800px;
+        }
+        .nav-list {
+            display: flex;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            justify-content: center;
+            gap: 1rem;
+        }
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 0.8rem 2rem;
+            border-radius: 6px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            transition: all 0.3s ease;
+            font-size: 1.05rem;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .nav-link i { font-size: 1.2rem; }
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .nav-link.active {
+            background-color: #7e57c2;
+            color: white;
+            box-shadow: 0 4px 12px rgba(126, 87, 194, 0.4);
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+        
+        #avatar-container {
+            width: 100%;
+            height: 120vh;
+            position: relative;
+            background-color: #fff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .controls-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            padding: 20px;
+            box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+        }
+        
+        .input-group {
+            display: flex;
+            max-width: 800px;
+            margin: 0 auto 15px;
+            gap: 10px;
+        }
+
+        .gender-select-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            background: #f3e5f5;
+            border: 1px solid #ce93d8;
+        }
+
+        .gender-icon {
+            font-size: 20px;
+            color: #6a1b9a;
+        }
+
+        #gender-select {
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 2px solid #ce93d8;
+            background-color: #ffffff;
+            color: #4a148c;
+            font-weight: 600;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        #gender-select:focus {
+            border-color: #8e24aa;
+        }
+        
+        #sign-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        #sign-input:focus {
+            outline: none;
+            border-color: #6f42c1;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            background-color: #6f42c1;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn:hover {
+            background-color: #5a35a0;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+        
+        .quick-actions {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .quick-btn {
+            padding: 8px 16px;
+            background-color: #f0f0f0;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .quick-btn:hover {
+            background-color: #e0e0e0;
+            transform: translateY(-2px);
+        }
+        
+        .status-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-weight: 500;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .status-message.visible {
+            opacity: 1;
+        }
+        
+        .processing {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .quick-actions-title {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+
+        /* Responsividad */
+        @media (max-width: 1024px) {
+            #avatar-container {
+                height: 90vh;
+            }
+            .controls-panel {
+                padding: 16px;
+            }
+            .input-group {
+                max-width: 95%;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                overflow: auto;
+            }
+            #avatar-container {
+                height: calc(100vh - 160px); /* Más altura para ver las manos */
+            }
+            .controls-panel {
+                padding: 14px 16px;
+                padding-bottom: calc(14px + env(safe-area-inset-bottom));
+            }
+            .input-group {
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-items: stretch;
+                gap: 8px;
+                max-width: 100%;
+                margin: 0 auto 10px;
+            }
+            #sign-input {
+                order: 1;
+                flex: 1 1 100%;
+                font-size: 16px;
+            }
+            .gender-select-wrapper {
+                order: 2;
+                flex: 0 0 40%;
+                min-width: 120px;
+            }
+            #mic-btn {
+                order: 3;
+                flex: 1 1 0;
+                min-width: 0;
+            }
+            #play-btn {
+                order: 4;
+                flex: 1 1 0;
+                min-width: 0;
+            }
+            .controls-panel .btn {
+                width: auto;
+                padding: 10px 16px;
+                font-size: 15px;
+            }
+            .status-message {
+                top: 10px;
+                font-size: 14px;
+                padding: 10px 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #avatar-container {
+                height: calc(100vh - 140px); /* Más altura para ver las manos */
+            }
+            .controls-panel {
+                padding: 12px;
+                padding-bottom: calc(12px + env(safe-area-inset-bottom));
+            }
+            .btn {
+                font-size: 14px;
+                padding: 12px 16px;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer" />
+</head>
+<body>
+ 
+    <div id="avatar-container"></div>
+    
+    <div class="controls-panel">
+        <div class="input-group">
+            <div class="gender-select-wrapper">
+                <i class="fa-solid fa-venus-mars gender-icon"></i>
+                <select id="gender-select" aria-label="Seleccionar género del avatar">
+                    <option value="male" selected>Hombre</option>
+                    <option value="female">Mujer</option>
+                </select>
+            </div>
+            <input type="text" 
+                   id="sign-input" 
+                   placeholder="Escribe una palabra o frase..." 
+                   autocomplete="off"
+                   aria-label="Texto para traducir a lenguaje de señas">
+           <button id="mic-btn" class="btn" aria-label="Hablar" title="Hablar">
+  <i class="fa-solid fa-microphone"></i>
+</button>
+
+<button id="play-btn" class="btn" aria-label="Mostrar signo" title="Mostrar signo">
+  <i class="fa-solid fa-hands"></i>
+</button>
+     </div>
+         
+    </div>
+    
+    <div id="status" class="status-message"></div>
+
+    <!-- Three.js y dependencias -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- Nuestros scripts -->
+    <script src="{{ url_for('static', filename='js/avatar/avatar.js') }}"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Inicializar el avatar
+            const avatar = new SignAvatar('avatar-container');
+            if (avatar && avatar.renderer) {
+                avatar.renderer.outputEncoding = THREE.sRGBEncoding;
+                avatar.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                avatar.renderer.toneMappingExposure = 0.85;
+            }
+
+            if (avatar && avatar.scene) {
+                const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+                avatar.scene.add(ambientLight);
+                const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.5);
+                avatar.scene.add(hemiLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                dirLight.position.set(0, 2, 4);
+                avatar.scene.add(dirLight);
+            }
+
+            const applyConfigIfMale = () => {
+                if (avatar && avatar.avatar && avatar.currentGender === 'male') {
+                    applyAvatarBlancoMaterialConfig(avatar.avatar);
+                }
+            };
+
+            const waitForInitialModel = setInterval(() => {
+                if (avatar && avatar.avatar) {
+                    applyConfigIfMale();
+                    clearInterval(waitForInitialModel);
+                }
+            }, 300);
+            
+            // Referencias a los elementos de la interfaz
+            const signInput = document.getElementById('sign-input');
+            const playBtn = document.getElementById('play-btn');
+            const micBtn = document.getElementById('mic-btn');
+            const statusEl = document.getElementById('status');
+            const genderSelect = document.getElementById('gender-select');
+            const quickBtns = document.querySelectorAll('.quick-btn');
+            let mediaRecorder = null;
+            let audioChunks = [];
+            let isRecording = false;
+            let recognizedWords = []; // Array para almacenar las palabras reconocidas
+            
+            // Función para mostrar un mensaje de estado
+            function showStatus(message, type = 'success') {
+                statusEl.textContent = message;
+                statusEl.className = 'status-message visible';
+                statusEl.classList.add(type);
+                
+                // Ocultar después de 3 segundos
+                setTimeout(() => {
+                    statusEl.classList.remove('visible');
+                    // Eliminar la clase de tipo después de la animación
+                    setTimeout(() => statusEl.className = 'status-message', 300);
+                }, 3000);
+            }
+            
+            // Helper: solicitar keypoints por nombre y aplicarlos (frame único o animación completa)
+            async function applyFirstFrameForName(name, opts = {}) {
+                if (!name) return;
+                const skipPose = !!opts.skipPose;
+                const noRestore = !!opts.noRestore; // evitar restaurar entre letras
+                try {
+                    // Primero intentar obtener el archivo JSON completo
+                    const jsonResp = await fetch(`/static/data/keypoints_json/${encodeURIComponent(name)}.json`);
+ 
+                    if (jsonResp.ok) {
+                        // Si encontramos el archivo JSON completo
+                        const jsonData = await jsonResp.json();
+                        const keypoints = jsonData.keypoints || [];
+                        
+                        console.log(`[DEBUG] Archivo: ${name}.json - Total de frames: ${keypoints.length}`);
+                       
+                        if (keypoints.length > 10) {
+                            // Usar animación de múltiples frames (JSON estático para una palabra/letra específica)
+                            console.log(`[DEBUG] Usando animación completa para: ${name} (${keypoints.length} frames)`);
+                            if (!skipPose) { await avatar.poseRightArmForAMi(400); }
+                            const nm = normalizeText(name);
+                            if (['hola','chau'].includes(nm)) { await avatar.orientRightPalm('inward', 250); }
+                            if (['m','n'].includes(nm)) {
+                                await avatar.rotateRightPalmBack(250);
+                                await avatar.orientRightPalm('down', 250);
+                            }
+                            // Para letras l,k,o,c dentro de una frase, usar palma de perfil
+                            if (['l','k'].includes(nm)) { await avatar.orientRightPalm('side', 250); }
+                            if (['o','c'].includes(nm)) { await avatar.orientRightPalm('side_half', 250); }
+                            // Para letras u,v dentro de una frase, agregar giro configurable de muñeca
+                            if (['u','v'].includes(nm)) { await avatar.rotateRightPalmLeftDegrees(300, 250,"a"); }
+                            if (nm === 'hola') { avatar._nextHandMotionMode = 'leftRightOnly'; }
+                            await avatar.playFrames(keypoints, 18, false);
+                            return true;
+                        } else if (keypoints.length > 0) {
+                            // Usar solo el primer frame
+                            console.log(`[DEBUG] Usando frame único para: ${name}`);
+                            if (!skipPose) { await avatar.poseRightArmForAMi(400); }
+                            const nm = normalizeText(name);
+                            if (['hola','chau'].includes(nm)) { await avatar.orientRightPalm('inward', 250); }
+                            if (['m','n'].includes(nm)) {
+                                await avatar.orientRightPalm('back', 250);
+                                await avatar.orientRightPalm('down', 250);
+                            }
+                            // Versión de frame único para l,k,o,c (palma de perfil fija)
+                            if (['l','k'].includes(nm)) { await avatar.orientRightPalm('side', 250); }
+                            if (['o','c'].includes(nm)) { await avatar.orientRightPalm('side_half', 250); }
+                            // Versión de frame único para u,v con giro extra de muñeca
+                            if (['u','v'].includes(nm)) { await avatar.rotateRightPalmLeftDegrees(222, 250,"b"); }
+                            avatar.applyHandKeypointsFrame(keypoints[0]);
+                            if (!noRestore) {
+                                // Mantener la pose ~1.5s antes de restaurar el brazo
+                                await new Promise(r => setTimeout(r, 3000));
+                                await avatar.restoreRightArmPose(700);
+                                avatar.resetPalmOrientationMode();
+                            }
+                            return true;
+                        }
+                    }
+                    
+                    // Fallback: usar el endpoint de la API (solo primer frame) cuando no existe JSON
+                    console.log(`[DEBUG] Usando endpoint API para: ${name}`);
+                    const resp = await fetch(`/api/avatar/keypoints?name=${encodeURIComponent(name)}`);
+                    const data = await resp.json();
+                    if (resp.ok && data && data.success && Array.isArray(data.frame)) {
+                        if (!skipPose) { await avatar.poseRightArmForAMi(400); }
+                        const nm = normalizeText(name);
+                        if (['hola','chau'].includes(nm)) { await avatar.orientRightPalm('inward', 250); }
+                        if (['m','n'].includes(nm)) {
+                            await avatar.rotateRightPalmBack(250);
+                            await avatar.orientRightPalm('down', 250);
+                        }
+                        // Orientación por defecto para l,k,o,c cuando los keypoints vienen desde la API
+                        if (['l','k'].includes(nm)) { await avatar.orientRightPalm('side', 250); }
+                        if (['o','c'].includes(nm)) { await avatar.orientRightPalm('side_half', 250); }
+                        // Giro adicional de muñeca para u,v cuando vienen desde la API
+                        if (['u','v'].includes(nm)) { await avatar.rotateRightPalmLeftDegrees(199, 250,"c"); }
+                        avatar.applyHandKeypointsFrame(data.frame);
+                        if (!noRestore) {
+                            await new Promise(r => setTimeout(r, 3000));
+                            await avatar.restoreRightArmPose(700);
+                            avatar.resetPalmOrientationMode();
+                        }
+                        return true;
+                    } else {
+                        console.warn('No se pudo obtener frame para', name, data);
+                        return false;
+                    }
+                } catch (e) {
+                    console.error('Error al solicitar keypoints:', e);
+                    return false;
+                }
+            }
+
+            // Helper: normalizar texto (minúsculas, quitar acentos)
+            function normalizeText(s) {
+                return (s || '')
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '');
+            }
+
+            function applyAvatarBlancoMaterialConfig(model) {
+                if (!model) return;
+                model.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        const name = (child.name || '').toLowerCase();
+                        const matName = (child.material.name || '').toLowerCase();
+
+                        // Ropa: no tocar materiales (camiseta, pantalones, zapatos, etc.)
+                        const isClothes =
+                            name.includes('tops') ||
+                            name.includes('shirt') ||
+                            name.includes('pants') ||
+                            name.includes('shorts') ||
+                            name.includes('shoes') ||
+                            matName.includes('tops') ||
+                            matName.includes('shirt') ||
+                            matName.includes('pants') ||
+                            matName.includes('shorts') ||
+                            matName.includes('shoes');
+
+                        if (isClothes) {
+                            return; // dejar ropa como viene del modelo
+                        }
+
+                        // Intentar detectar partes de piel (cuerpo, cara, brazos, etc.)
+                        const isSkinLike =
+                            matName.includes('skin') ||
+                            matName.includes('body') ||
+                            name.includes('body') ||
+                            name.includes('arm') ||
+                            name.includes('hand') ||
+                            name.includes('leg') ||
+                            name.includes('head') ||
+                            name.includes('neck');
+
+                        if (isSkinLike) {
+                            if ('emissive' in child.material && child.material.emissive && child.material.emissive.set) {
+                                // tono piel un poco más oscuro y menos brillante
+                                child.material.emissive.set(0xffe0c0);
+                            }
+                            if ('emissiveIntensity' in child.material) {
+                                child.material.emissiveIntensity = 0.008;
+                            }
+                            child.material.needsUpdate = true;
+                        }
+                    }
+                });
+            }
+
+            // Extraer letras de frases como "letra u" o "letra a b c"
+            function extractLettersFromPhrase(text) {
+                const t = normalizeText(text);
+                const tokens = t.split(/\s+/).filter(Boolean);
+                const letters = [];
+                for (let i = 0; i < tokens.length; i++) {
+                    if (tokens[i] === 'letra' || tokens[i] === 'letras') {
+                        // Consumir todos los tokens siguientes que sean letras
+                        let j = i + 1;
+                        while (j < tokens.length) {
+                            const tok = tokens[j];
+                            if (/^[a-z]+$/.test(tok)) {
+                                if (tok.length === 1) {
+                                    letters.push(tok);
+                                } else {
+                                    for (const ch of tok) letters.push(ch);
+                                }
+                                j++;
+                            } else {
+                                break;
+                            }
+                        }
+                        i = j - 1; // Saltar lo ya procesado
+                    }
+                }
+                return letters;
+            }
+
+            // Procesar palabras con búsqueda en cascada
+            async function processWordsWithCascadeSearch(words, opts = {}) {
+                if (!words || words.length === 0) return;
+                
+                try {
+                    // Llamar al endpoint con búsqueda en cascada
+                    const resp = await fetch('/api/avatar/keypoints_sequence', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ words: words })
+                    });
+                    
+                    const data = await resp.json();
+                    
+                    if (resp.ok && data && data.success) {
+                        console.log('Secuencia de keypoints:', data);
+                        console.log('Palabras encontradas:', data.total_found);
+                        console.log('Palabras no encontradas:', data.total_not_found);
+                        
+                        // Capturar la pose inicial del brazo ANTES de cualquier seña
+                        avatar.captureInitialArmPose();
+                        
+                        // Aplicar cada secuencia de keypoints encontrada (flujo de palabras con búsqueda en cascada)
+                        let lastPalmMode = null;
+                        for (const item of data.sequence) {
+                             
+                            // Si tiene keypoints, verificar la longitud para decidir el método
+                            if (item.keypoints && item.keypoints.length > 0) {
+                                console.log(`[DEBUG] ${item.word} tiene ${item.keypoints.length} frames`);
+                                
+                                const nm = normalizeText(item.word);
+                                const mode = ['m','n'].includes(nm) ? 'down' : (['hola','chau'].includes(nm) ? 'inward' : (['l','k','o','c'].includes(nm) ? 'side' : null));
+                                const skipPose = !!(lastPalmMode && mode && mode === lastPalmMode);
+                                if (!skipPose) { await avatar.poseRightArmForAMi(400); }
+
+                                if (item.keypoints.length > 10) {
+                                    // Usar animación de múltiples frames (solo la mitad de los keypoints) para esta palabra de la frase
+                                    console.log(`[DEBUG] Usando animación completa (mitad de frames) para: ${item.word} (${item.keypoints.length} frames totales)`);
+                                    if (['hola','chau'].includes(nm)) { await avatar.orientRightPalm('inward', 250); }
+                                    if (['m','n'].includes(nm)) {
+                                        await avatar.rotateRightPalmBack(250);
+                                        await avatar.orientRightPalm('down', 250);
+                                    }
+                                    // Para palabras/ letras l,k,o,c dentro de una frase, usar palma de perfil
+                                    if (['l','k'].includes(nm)) { await avatar.orientRightPalm('side', 250); }
+                                    if (['o','c'].includes(nm)) { await avatar.orientRightPalm('side_half', 250); }
+                                    // Para letras u,v dentro de una frase, agregar giro configurable de muñeca
+                                    if (['u','v'].includes(nm)) { await avatar.rotateRightPalmLeftDegrees(0, 250,"d"); }
+                                    if ((opts.typedLegusta && nm === 'legusta') || nm === 'a') {
+                                        await avatar.orientRightPalm('left', 250);
+                                        await avatar.rotateRightPalmLeft90(250);
+                                    }
+                                    const halfCount = Math.max(1, Math.floor(item.keypoints.length / 3));
+                                    if (nm === 'hola') { avatar._nextHandMotionMode = 'leftRightOnly'; }
+                                    const halfFrames = item.keypoints.slice(0, halfCount);
+                                    await avatar.playFrames(halfFrames, 18, false);
+                                } else {
+                                    // Usar solo el primer frame para esta palabra/letra de la frase
+                                    console.log(`[DEBUG] Usando frame único para: ${item.word}`);
+                                    if (['hola','chau'].includes(nm)) { await avatar.orientRightPalm('inward', 250); }
+                                    if (['m','n'].includes(nm)) {
+                                        await avatar.rotateRightPalmBack(250);
+                                        await avatar.orientRightPalm('down', 250);
+                                    }
+                                    // Oriento palma de perfil para l,k,o,c en frases cortas
+                                    if (['l','k'].includes(nm)) { await avatar.orientRightPalm('side', 250); }
+                                    if (['o','c'].includes(nm)) { await avatar.orientRightPalm('side_half', 250); }
+                                    // Aplico giro extra de muñeca para u,v en frases cortas
+                                    if (['u','v'].includes(nm)) { await avatar.rotateRightPalmLeftDegrees(0, 250,"e"); }
+                                    if ((opts.typedLegusta && nm === 'legusta') || nm === 'a') {
+                                        await avatar.orientRightPalm('left', 250);
+                                        await avatar.rotateRightPalmLeft90(250);
+                                    }
+                                    const firstFrame = item.keypoints[0];
+                                    if (Array.isArray(firstFrame)) {
+                                        avatar.applyHandKeypointsFrame(firstFrame);
+                                    } else if (firstFrame.keypoints && Array.isArray(firstFrame.keypoints)) {
+                                        avatar.applyHandKeypointsFrame(firstFrame.keypoints);
+                                    }
+                                }
+                                lastPalmMode = mode || lastPalmMode;
+                                
+                                // Pausa entre palabras
+                                await new Promise(r => setTimeout(r, 2600));
+                            }
+                        }
+
+                        // Al terminar TODAS las palabras, restaurar a la pose inicial (brazos abajo)
+                        await avatar.restoreRightArmPose(600, true);
+                        avatar.clearInitialArmPose();
+                        avatar.resetPalmOrientationMode();
+                        
+                        // Mostrar palabras no encontradas en consola
+                        if (data.not_found && data.not_found.length > 0) {
+                            console.warn('Palabras no encontradas:', data.not_found);
+                        }
+                    } else {
+                        console.error('Error al obtener secuencia:', data);
+                    }
+                } catch (err) {
+                    console.error('Error de red al obtener secuencia:', err);
+                }
+            }
+
+            // Función reutilizable para reproducir la seña del texto en el input
+            async function playSignFromInput() {
+                const text = signInput.value.trim();
+                if (!text) {
+                    showStatus('Por favor ingresa una palabra', 'error');
+                    return;
+                }
+                
+                // Soporte de frases tipo: "letra u" → aplica frames de letras
+                const letters = extractLettersFromPhrase(text);
+                if (letters.length) {
+                    let lastPalmMode = null;
+                    for (const ch of letters) {
+                        const nm = normalizeText(ch);
+                        const mode = ['m','n'].includes(nm) ? 'down' : (['l','k','o','c'].includes(nm) ? 'side' : null);
+                        const skipPose = !!(lastPalmMode && mode && mode === lastPalmMode);
+                        await applyFirstFrameForName(ch, { skipPose });
+                        lastPalmMode = mode || lastPalmMode;
+                        await new Promise(r => setTimeout(r, 500));
+                    }
+                } else {
+                    // Procesar TODAS las palabras usando búsqueda en cascada
+                    const norm = normalizeText(text);
+                    let words = text.split(/\s+/).filter(Boolean).map(normalizeText);
+                    let typedLegusta = norm === 'legusta';
+                    if (norm === 'le gusta') {
+                        signInput.value = 'legusta';
+                        words = ['legusta'];
+                        typedLegusta = true;
+                    }
+                    await processWordsWithCascadeSearch(words, { typedLegusta });
+                }
+                showStatus(`Mostrando: ${text}`, 'success');
+                // Limpiar el input después de que el avatar termine la seña
+                signInput.value = '';
+            }
+
+            // Reproducir animación al hacer clic en el botón
+            playBtn.addEventListener('click', playSignFromInput);
+
+            micBtn.addEventListener('click', async () => {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    showStatus('Micrófono no soportado', 'error');
+                    return;
+                }
+                if (!isRecording) {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        mediaRecorder = new MediaRecorder(stream);
+                        audioChunks = [];
+                        isRecording = true;
+                        micBtn.innerHTML = '<i class="fa-solid fa-stop"></i>';
+                        showStatus('Escuchando...', 'processing');
+                        mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) audioChunks.push(e.data); };
+                        
+                        // Auto-detener después de 4 segundos si no se detecta audio
+                        const autoStopTimeout = setTimeout(() => {
+                            if (isRecording && mediaRecorder && mediaRecorder.state === 'recording') {
+                                try { mediaRecorder.stop(); } catch (_) {}
+                            }
+                        }, 2000);
+                        
+                        mediaRecorder.onstop = async () => {
+                            clearTimeout(autoStopTimeout); // Limpiar el timeout
+                            // Restaurar botón inmediatamente
+                            micBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+                            isRecording = false;
+                            
+                            // Detener tracks del stream
+                            if (mediaRecorder && mediaRecorder.stream) {
+                                mediaRecorder.stream.getTracks().forEach(tr => tr.stop());
+                            }
+                            
+                            showStatus('Procesando audio...', 'processing');
+                            
+                            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                            const form = new FormData();
+                            form.append('audio', blob, 'audio.webm');
+                            
+                            try {
+                                const resp = await fetch('/api/avatar/process_audio', { method: 'POST', body: form });
+                                const data = await resp.json();
+                                if (resp.ok && data && data.success && data.text) {
+                                    const t = String(data.text).trim();
+                                    if (t) {
+                                        // Poner el texto en el input
+                                        signInput.value = t;
+                                        recognizedWords = data.words || [];
+                                        console.log('Texto reconocido:', t);
+                                        
+                                        // Ejecutar la seña automáticamente (igual que el botón play)
+                                        await playSignFromInput();
+                                    } else {
+                                        showStatus('No se detectó texto', 'error');
+                                    }
+                                } else {
+                                    const errorMsg = data && data.error ? data.error : 'Error al procesar el audio';
+                                    showStatus(errorMsg, 'error');
+                                }
+                            } catch (err) {
+                                showStatus('Error de red al enviar audio', 'error');
+                                console.error('Error de red:', err);
+                            }
+                        };
+                        mediaRecorder.start();
+                    } catch (_) {
+                        showStatus('Permiso de micrófono denegado', 'error');
+                        isRecording = false;
+                        micBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+                    }
+                } else {
+                    // Detener grabación inmediatamente
+                    try { mediaRecorder.stop(); } catch (_) {}
+                }
+            });
+            
+            // Reproducir al presionar Enter
+            signInput.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter') {
+                    await playSignFromInput();
+                }
+            });
+            
+            // Botones rápidos
+            quickBtns.forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const word = btn.getAttribute('data-word');
+                    signInput.value = word;
+                    await applyFirstFrameForName(word);
+                    showStatus(`Mostrando: ${word}`, 'success');
+                    // Limpiar el input después de que el avatar termine la seña
+                    signInput.value = '';
+                });
+            });
+            
+            // Enfocar el campo de entrada al cargar
+            signInput.focus();
+            // Ajustar SOLO el fondo del selector de género según la opción
+            const genderWrapper = document.querySelector('.gender-select-wrapper');
+            if (genderSelect && genderWrapper) {
+                genderWrapper.style.backgroundColor = (genderSelect.value === 'female') ? '#ffe4ec' : '#e3f2fd';
+            }
+
+            if (genderSelect) {
+                genderSelect.addEventListener('change', async (e) => {
+                    const value = e.target.value === 'female' ? 'female' : 'male';
+                    // Cambiar SOLO el fondo del wrapper del selector
+                    if (genderWrapper) {
+                        genderWrapper.style.backgroundColor = (value === 'female') ? '#ffe4ec' : '#e3f2fd';
+                    }
+                    try {
+                        await avatar.setGender(value);
+                        if (value === 'male' && avatar && avatar.avatar) {
+                            applyAvatarBlancoMaterialConfig(avatar.avatar);
+                        }
+                        showStatus(value === 'female' ? 'Avatar femenino seleccionado' : 'Avatar masculino seleccionado', 'success');
+                    } catch (err) {
+                        console.error('Error al cambiar de avatar:', err);
+                        showStatus('No se pudo cambiar el avatar', 'error');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -7,25 +7,27 @@ class MediaPipeService:
         # Inicializar soluciones de MediaPipe
         self.mp_holistic = mp.solutions.holistic
         self.mp_drawing = mp.solutions.drawing_utils 
-        self.holistic = self.mp_holistic.Holistic(
-            min_detection_confidence=0.5,
+        self.mp_hands = mp.solutions.hands
+        self.hands = self.mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=2,
+            min_detection_confidence=0.7,
             min_tracking_confidence=0.5
         )
 
-    def detect(self, image: np.ndarray) -> Dict[str, Any]:
-        """Detecta puntos clave en la imagen usando MediaPipe Holistic."""
-        # Convertir BGR a RGB
-        image_rgb = image[..., ::-1]
-        
-        # Hacer la detección
-        results = self.holistic.process(image_rgb)
-        
-        return {
-            'pose': results.pose_landmarks,
-            'left_hand': results.left_hand_landmarks,
-            'right_hand': results.right_hand_landmarks,
-            'face': results.face_landmarks
-        }
+    def detect(self, image: np.ndarray):
+        if image is None or image.size == 0:
+            return None
+            
+        try:
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image_rgb.flags.writeable = False
+            results = self.hands.process(image_rgb)
+            image_rgb.flags.writeable = True
+            return results
+        except Exception as e:
+            print(f"Error en detección: {str(e)}")
+            return None
 
     def extract_keypoints(self, results: Dict[str, Any], include_face: bool = False) -> np.ndarray:
         """Extrae y normaliza los keypoints de los resultados de detección."""

@@ -104,7 +104,7 @@
 </head>
 <body>
     <div class="container">
-        <nav class="nav">
+        <!-- <nav class="nav">
             <ul class="nav-list">
                 <li>
                     <a href="/" class="nav-link active">
@@ -117,27 +117,36 @@
                         <i class="fas fa-plus-circle"></i>
                         <span>Agregar Palabras</span>
                     </a>
-                </li>
+                </li>  
             </ul>
-        </nav>
+        </nav> -->
 
         <h1>Capturar Nuevas Palabras</h1>
         
         <div class="word-input">
-            <input type="text" id="wordInput" placeholder="Ingresa la palabra" />
-            <button id="startButton" class="btn">Iniciar Cámara</button>
-        </div>
-        
-        <div class="camera-container" style="display: none;">
-            <video id="video" width="640" height="480" autoplay muted></video>
-            <canvas id="canvas" width="640" height="480"></canvas>
-        </div>
-        
-        <div class="controls" style="display: none;">
-            <button id="captureButton" class="btn btn-capture">Capturar Imagen</button>
-            <div id="status">Presiona "Capturar Imagen" para guardar</div>
-            <div id="result"></div>
-            <div id="confidence"></div>
+            <div style="margin-bottom: 15px;">
+                <input type="text" id="wordInput" placeholder="Ingresa la palabra" class="form-control" style="margin-bottom: 10px; padding: 10px; font-size: 16px; width: 100%; max-width: 400px; border: 1px solid #ddd; border-radius: 5px;" />
+                <div class="button-group" style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                    <button id="startButton" class="btn" style="padding: 10px 20px; background-color: #5e35b1; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; flex: 1; min-width: 150px;">
+                        <i class="fas fa-camera"></i> Iniciar Cámara
+                    </button>
+                    <button id="switchCamera" class="btn" style="padding: 10px 20px; background-color: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; display: none; flex: 1; min-width: 150px;">
+                        <i class="fas fa-sync-alt"></i> Cambiar Cámara
+                    </button>
+                    <button id="captureButton" class="btn" style="padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; flex: 1; min-width: 150px;" disabled>
+                        <i class="fas fa-camera-retro"></i> Capturar Imagen
+                    </button>
+                </div>
+            </div>
+            
+            <div class="camera-container" style="display: none; margin: 0 auto; text-align: center;">
+                <video id="video" width="640" height="480" autoplay muted playsinline style="max-width: 100%; height: auto; border-radius: 8px;"></video>
+                <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
+            </div>
+            
+            <div id="status" style="margin: 15px 0; font-size: 16px; color: #333; text-align: center;">Presiona "Iniciar Cámara" para comenzar</div>
+            <div id="result" style="margin-top: 10px; font-size: 18px; font-weight: bold; text-align: center;"></div>
+            <div id="confidence" style="color: #666; margin-top: 5px; text-align: center;"></div>
         </div>
         
         

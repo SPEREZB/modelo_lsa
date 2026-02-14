@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const startButton = document.getElementById('startButton');
+    const switchCameraBtn = document.getElementById('switchCamera');
     const statusDiv = document.getElementById('status');
     const resultDiv = document.getElementById('result');
     const confidenceDiv = document.getElementById('confidence');
@@ -11,10 +12,32 @@ document.addEventListener('DOMContentLoaded', () => {
     let isRunning = false;
     let animationId = null;
     let lastUpdate = 0;
-    const PREDICTION_INTERVAL = 200; // ms
+    const PREDICTION_INTERVAL = 100; // ms - reducido para mejor respuesta
+    let webSocketClient = null;
+    
+    // Variables para manejo de cámaras
+    let currentFacingMode = 'user'; // 'user' para frontal, 'environment' para trasera
+    let devices = [];
+    let currentDeviceId = '';
 
+    // Obtener lista de dispositivos de cámara
+    async function getCameraDevices() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            console.log('enumerateDevices() no es soportado en este navegador');
+            return [];
+        }
+        
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            return devices.filter(device => device.kind === 'videoinput');
+        } catch (err) {
+            console.error('Error al enumerar dispositivos:', err);
+            return [];
+        }
+    }
+    
     // Iniciar cámara
-    async function startCamera() {
+    async function startCamera(facingMode = 'user') {
         statusDiv.textContent = 'Solicitando acceso a la cámara...';
         
         try {
@@ -28,19 +51,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 stopCameraStream();
             }
             
-            // Solicitar acceso a la cámara
-            stream = await navigator.mediaDevices.getUserMedia({ 
+            // Obtener dispositivos de cámara
+            devices = await getCameraDevices();
+            
+            // Si hay múltiples cámaras, mostrar el botón de cambio
+            if (devices.length > 1 && switchCameraBtn) {
+                switchCameraBtn.style.display = 'inline-block';
+            } else if (switchCameraBtn) {
+                switchCameraBtn.style.display = 'none';
+            }
+            
+            // Configuración de la cámara
+            const constraints = {
                 video: { 
                     width: { ideal: 640 },
                     height: { ideal: 480 },
-                    facingMode: 'user',
-                    frameRate: { ideal: 30 }
+                    frameRate: { ideal: 30 },
+                    facingMode: { exact: facingMode }
                 },
                 audio: false
-            });
+            };
+            
+            // Si ya tenemos un deviceId específico, usarlo
+            if (currentDeviceId) {
+                delete constraints.video.facingMode;
+                constraints.video.deviceId = { exact: currentDeviceId };
+            }
+            
+            // Solicitar acceso a la cámara
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            
+            // Actualizar el modo de cámara actual
+            currentFacingMode = facingMode;
             
             // Configurar el elemento de video
             video.srcObject = stream;
+
+            const shouldMirror = (currentDeviceId && currentFacingMode === 'user') || (!currentDeviceId && facingMode === 'user');
+            video.style.transform = shouldMirror ? 'scaleX(-1)' : 'scaleX(1)';
             
             // Esperar a que el video esté listo
             return new Promise((resolve) => {
@@ -82,8 +130,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Enviar frame al servidor para predicción
-    async function processFrame() {
+    // Función para procesar y enviar frames al servidor
+    async function processFrame() { 
         if (!isRunning) return;
         
         const now = Date.now();
@@ -92,58 +140,121 @@ document.addEventListener('DOMContentLoaded', () => {
         if (now - lastUpdate >= PREDICTION_INTERVAL) {
             lastUpdate = now;
             
+            // Asegurarse de que el canvas tenga el mismo tamaño que el video
+            if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+            }
+
             // Limpiar el canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Dibujar el frame en el canvas (espejado)
+
+            // Determinar si estamos usando la cámara frontal o trasera
+            const isFrontCamera = currentFacingMode === 'user' || 
+                                (currentDeviceId && devices.find(d => d.deviceId === currentDeviceId)?.label.toLowerCase().includes('front'));
+
+            // Aplicar transformaciones según la cámara
             ctx.save();
-            ctx.scale(-1, 1);  // Invertir horizontalmente
-            ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-            ctx.restore();
             
+            if (isFrontCamera) {
+                // Para cámara frontal: aplicar espejo horizontal
+                ctx.scale(-1, 1);
+                ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+            } else {
+                // Para cámara trasera: sin espejo
+                ctx.scale(-1, 1);
+                ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+
+               // ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            }
+            
+            ctx.restore();
+
+            // Enviar el frame a través del WebSocket si está disponible
             try {
-                // Convertir a formato para enviar
-                const imageData = canvas.toDataURL('image/jpeg', 0.8);
-                const blob = await (await fetch(imageData)).blob();
-                
-                const formData = new FormData();
-                formData.append('image', blob, 'frame.jpg');
-                
-                // Enviar al servidor
-                const response = await fetch('/api/predict', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    if (result.prediction!="") {
-                        resultDiv.textContent = `Seña: ${result.prediction}`;
-                    } else {
-                        resultDiv.textContent = 'No se detectaron manos';
-                    }
+                if (window.WebSocketClient && window.WebSocketClient.sendFrame) {
+                    window.WebSocketClient.sendFrame(canvas);
                 }
-                
             } catch (error) {
-                console.error('Error:', error);
-                statusDiv.textContent = `Error: ${error.message}`;
+                console.error('Error enviando frame:', error);
             }
         }
         
         animationId = requestAnimationFrame(processFrame);
     }
-
+    // Función para cambiar entre cámaras
+    async function switchCamera() {
+        if (devices.length < 2) return;
+        
+        // Guardar el estado actual de ejecución
+        const wasRunning = isRunning;
+        
+        // Detener la cámara actual
+        if (wasRunning) {
+            stopPrediction();
+        }
+        
+        try {
+            // Encontrar el índice de la cámara actual
+            const currentIndex = devices.findIndex(device => 
+                device.deviceId === currentDeviceId
+            );
+            
+            // Calcular el índice de la siguiente cámara
+            const nextIndex = (currentIndex + 1) % devices.length;
+            const nextDevice = devices[nextIndex];
+            
+            // Determinar si la cámara es frontal o trasera basado en la etiqueta del dispositivo
+            const deviceLabel = nextDevice.label.toLowerCase();
+            const isFrontFacing = deviceLabel.includes('front') || 
+                                deviceLabel.includes('user') ||
+                                deviceLabel.includes('facing');
+            
+            // Actualizar el modo de la cámara
+            currentFacingMode = isFrontFacing ? 'user' : 'environment';
+            currentDeviceId = nextDevice.deviceId;
+            
+            // Detener la cámara actual
+            stopCameraStream();
+            
+            // Iniciar la nueva cámara
+            await startCamera(currentFacingMode);
+            
+            // Reanudar la predicción si estaba activa
+            if (wasRunning) {
+                startPrediction();
+            }
+            
+            console.log('Cambiando a cámara:', {
+                deviceId: currentDeviceId,
+                label: nextDevice.label,
+                facingMode: currentFacingMode,
+                isFrontFacing: isFrontFacing
+            });
+            
+        } catch (error) {
+            console.error('Error al cambiar de cámara:', error);
+            // Restaurar el estado en caso de error
+            if (wasRunning) {
+                startPrediction();
+            }
+        }
+    }
+    // Control del botón de cambio de cámara
+    if (switchCameraBtn) {
+        switchCameraBtn.addEventListener('click', switchCamera);
+    }
+    
     // Control del botón de inicio/detención
-    startButton.addEventListener('click', () => {
-        if (isRunning) {
+    startButton.addEventListener('click', () => { 
+        if (isRunning) { 
             isRunning = false;
             cancelAnimationFrame(animationId);
-            startButton.textContent = 'Iniciar';
+            startButton.textContent = 'Iniciar Detección';
             statusDiv.textContent = 'Detenido';
             resultDiv.textContent = 'Esperando detección...';
             confidenceDiv.textContent = '';
-        } else {
+        } else { 
             isRunning = true;
             startButton.textContent = 'Detener';
             statusDiv.textContent = 'Detectando...';
